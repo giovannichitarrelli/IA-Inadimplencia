@@ -1,0 +1,9 @@
+streamlit
+langchain-openai
+langchain-core
+httpx
+pandas
+numpy
+pillow
+pyodbc
+python-dotenv
