@@ -1,0 +1,37 @@
+Documentação do Chatbot de Análise de Inadimplência
+
+Descrição
+Este projeto é um chatbot interativo desenvolvido com Streamlit e Deepseek API para realizar análises de inadimplência no Brasil. Ele utiliza um banco de dados Azure para gerar insights dinâmicos com base nas perguntas do usuário.
+
+Funcionalidades
+Entrada de Perguntas:
+O usuário pode fazer perguntas relacionadas à inadimplência, como:
+
+"Quais são os principais estados com maior inadimplência?"
+"Compare a inadimplência entre Pessoas Físicas e Jurídicas."
+O chatbot processa a entrada e retorna insights baseados nos dados.
+
+Sugestões de Perguntas:
+A barra lateral oferece sugestões de perguntas para facilitar a interação.
+
+Histórico de Mensagens:
+O chatbot mantém um histórico das mensagens trocadas entre o usuário e o assistente.
+
+Estrutura do Código
+Versões do Script:
+V1: Conecta com a API Deepseek para obter respostas de um modelo de IA treinado para o setor bancário.
+V2: Versão 2 do código para geração de insights a partir de um DataFrame parquet e interação com o modelo de IA da Deepseek.
+V3: Transformando o código em um diálogo com o usuário (Adicionando função de chat).
+V4: Adicionado Streamlit para exibir o chatbot sem usar insights como base, apenas carregando os dados e exibindo o chatbot.
+V4: Transformando arquivo Parquet para CSV.
+V5: Implementação do Langchain.
+V7: Eliminando base de insights e passando contexto via endpoints e palavras-chave.
+V8: Pré-definindo insights e acessando dados via .env e Azure.
+
+Tecnologias Utilizadas:
+
+Streamlit
+Pandas
+Azure
+SQL
+Langchain
