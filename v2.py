@@ -3,8 +3,11 @@
 from openai import OpenAI
 import httpx
 import pandas as pd
-
-client = OpenAI(api_key="sk-461442f8d35c4fc7b6c543e48ac0c431", base_url="https://api.deepseek.com", http_client=httpx.Client(verify=False))
+from dotenv import load_env
+import os
+load_env()
+api_key = os.getenv("API_KEY")
+client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com", http_client=httpx.Client(verify=False))
 
 user_content = input("Como posso te ajudar hoje? ")
 
