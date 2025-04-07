@@ -67,8 +67,6 @@ def load_data(conn):
         st.error(f"Erro ao carregar os dados: {str(e)}")
         return None
 
-
-
 def generate_advanced_insights(df):
     """
     Gera insights detalhados sobre inadimplência a partir de dados consolidados de dezembro de 2024

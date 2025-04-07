@@ -1,4 +1,3 @@
- 
 import streamlit as st
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
@@ -22,7 +21,7 @@ if "app_initialized" not in st.session_state:
     st.session_state.app_initialized = False
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
-    
+
 def get_llm_client():
     return ChatOpenAI(
         api_key=api_key,
@@ -34,14 +33,12 @@ def get_llm_client():
 def connect_to_db():
     try:
         print("Tentando conectar ao banco de dados PostgreSQL no GCP...")
-        # Dados de conexão
         host = os.getenv("SERVER")
         database = os.getenv("DATABASE")
         username = os.getenv("USERNAME")
         password = os.getenv("PASSWORD")
         port = os.getenv("PORT")
 
-        # Conexão com o banco de dados
         conn = psycopg2.connect(
             host=host,
             database=database,
@@ -51,32 +48,24 @@ def connect_to_db():
         )
         print("Conexão com o banco de dados estabelecida com sucesso!")
         return conn
-
     except Exception as e:
         print("Erro ao conectar ao banco de dados:", e)
         return None
-    
-def load_data(conn):
+
+def load_data_from_db(conn):
+    """Carrega os dados do banco de dados."""
+    query = """
+        SELECT * FROM table_agg_inad_consolidado
+    """
     try:
-        table = "table_agg_inad_consolidado"  
-        query = f"SELECT * FROM {table}"
         df = pd.read_sql(query, conn)
         return df
-    except psycopg2.Error as e:
-        st.error(f"Erro ao carregar os dados: {str(e)}")
+    except Exception as e:
+        print(f"Erro ao carregar dados do banco: {e}")
         return None
 
 def generate_advanced_insights(df):
-    """
-    Gera insights detalhados sobre inadimplência a partir de dados consolidados de dezembro de 2024
-    
-    Params:
-        df: DataFrame com dados consolidados de inadimplência
-    
-    Returns:
-        String com insights formatados
-    """
-    # Filtrar apenas dados de dezembro de 2024
+   
     df['data_base'] = pd.to_datetime(df['data_base'], format='%d/%m/%Y', errors='coerce')
     df = df[(df['data_base'].dt.month == 12) & (df['data_base'].dt.year == 2024)].copy()
     
@@ -357,41 +346,30 @@ def generate_advanced_insights(df):
     return insights
 
 def main():
-    st.title(" Chatbot Inadimplinha")
-    st.caption(" Chatbot Inadimplinha desenvolvido por Grupo de Inadimplência EY")
+    st.title("Chatbot Inadimplinha")
+    st.caption("Chatbot Inadimplinha desenvolvido por Grupo de Inadimplência EY")
 
     conn = connect_to_db()
     if conn is None:
+        st.error("Não foi possível conectar ao banco de dados.")
         st.stop()
-
-
-    if "insights" not in st.session_state:
-        df = load_data(conn)
-        if df is None:
-            conn.close()
-            st.stop()
-        st.session_state.insights = generate_advanced_insights(df)
 
     llm = get_llm_client()
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
             "Você é um especialista em análise de inadimplência no Brasil. "
-            "Use os insights pré-calculados abaixo para responder às perguntas do usuário de forma clara e objetiva. "
-            "Não gere consultas SQL ou acesse dados diretamente; baseie-se apenas nos insights fornecidos. "
-            "Se a pergunta não puder ser respondida com os insights disponíveis, informe isso ao usuário. "
-            "Insights disponíveis:\n\n{insights}"
+            "Responda às perguntas do usuário de forma clara e objetiva. "
+            "Se precisar de dados para responder, gere os insights dinamicamente chamando a função generate_advanced_insights(). "
+            "Se a pergunta não puder ser respondida com os dados disponíveis, informe isso ao usuário."
         )),
         ("human", "{input}")
     ])
 
-    # Criar a cadeia de execução
     chain = prompt_template | llm
 
-    # Inicializar o histórico de mensagens
     if "chat_history_store" not in st.session_state:
         st.session_state.chat_history_store = InMemoryChatMessageHistory()
 
-    # Envolver a cadeia com histórico de mensagens
     conversation = RunnableWithMessageHistory(
         runnable=chain,
         get_session_history=lambda: st.session_state.chat_history_store,
@@ -399,40 +377,48 @@ def main():
         history_messages_key="chat_history"
     )
 
-    # Adicionar mensagem inicial apenas uma vez
     if not st.session_state.app_initialized and not st.session_state.chat_history:
         initial_message = "Como posso te ajudar hoje?"
         st.session_state.chat_history.append({"role": "assistant", "content": initial_message})
         st.session_state.chat_history_store.add_ai_message(initial_message)
         st.session_state.app_initialized = True
 
-    # Exibir histórico de chat para o usuário
     for message in st.session_state.chat_history:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
     if prompt := st.chat_input("Faça uma pergunta sobre a inadimplência"):
-        # Adicionar a pergunta do usuário à interface de chat
         with st.chat_message("user"):
             st.markdown(prompt)
         
-        # Adicionar à exibição do histórico
         st.session_state.chat_history.append({"role": "user", "content": prompt})
         
-        # Processar a resposta
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
             
             try:
-                with st.spinner(""):
-                    # Executar a consulta com os insights pré-definidos
-                    response = conversation.invoke(
-                        {"input": prompt, "insights": st.session_state.insights},
-                        config={"configurable": {"session_id": "default"}}
-                    )
-                    response_stream = response.content
+                with st.spinner("Processando..."):
+                    # Verifica se o prompt exige análise de dados
+                    if any(keyword in prompt.lower() for keyword in ["inadimplência", "estado", "cliente", "modalidade", "taxa", "ocupação", "porte"]):
+                        # Carrega os dados dinamicamente apenas quando necessário
+                        df = load_data_from_db(conn)
+                        if df is None or df.empty:
+                            response_stream = "Erro ao carregar os dados ou nenhum dado disponível."
+                        else:
+                            insights = generate_advanced_insights(df)
+                            response = conversation.invoke(
+                                {"input": f"{prompt}\n\nInsights disponíveis:\n{insights}"},
+                                config={"configurable": {"session_id": "default"}}
+                            )
+                            response_stream = response.content
+                    else:
+                        response = conversation.invoke(
+                            {"input": prompt},
+                            config={"configurable": {"session_id": "default"}}
+                        )
+                        response_stream = response.content
                     
-                    # Simulando streaming para melhor UX
+                    # Simula o streaming da resposta
                     full_response = ""
                     for i in range(len(response_stream)):
                         full_response = response_stream[:i+1]
@@ -440,8 +426,8 @@ def main():
                         time.sleep(0.01)
                     message_placeholder.markdown(full_response)
                     
-                    # Adicionar à exibição do histórico
                     st.session_state.chat_history.append({"role": "assistant", "content": full_response})
+                    st.session_state.chat_history_store.add_ai_message(full_response)
                 
             except Exception as e:
                 error_message = f"Erro no processamento: {str(e)}"
@@ -449,15 +435,11 @@ def main():
                 st.session_state.chat_history.append({"role": "assistant", "content": error_message})
                 st.session_state.chat_history_store.add_ai_message(error_message)
 
-        # Sidebar
-  
-  
     with st.sidebar:
         ey_logo = Image.open(r"EY_Logo.png")
         ey_logo_resized = ey_logo.resize((100, 100))   
         st.sidebar.image(ey_logo_resized)
         st.sidebar.header("EY Academy | Inadimplência")
-
         st.sidebar.subheader("🔍 Sugestões de Análise")
         st.sidebar.write("➡️ Qual estado com maior inadimplência e quais os valores devidos?")
         st.sidebar.write("➡️ Qual tipo de cliente apresenta o maior número de operações?")
@@ -465,16 +447,11 @@ def main():
         st.sidebar.write("➡️ Compare a inadimplência entre PF e PJ")
         st.sidebar.write("➡️ Qual ocupação entre PF possui maior inadimplência?")
         st.sidebar.write("➡️ Qual o principal porte de cliente com inadimplência entre PF?")
-        # st.sidebar.write("➡️ Qual seção CNAE possui a maior inadimplência?")
-        # st.sidebar.write("➡️ Qual estado tem o maior valor médio de operações a vencer em até 90 dias?")
-        
-        # Botão para limpar histórico de conversa
+
         if st.button("Limpar Conversa"):
             st.session_state.chat_history_store = InMemoryChatMessageHistory()
             st.session_state.chat_history = []
             st.session_state.app_initialized = False
-            if "insights" in st.session_state:
-                del st.session_state.insights  # Recarregar insights na próxima execução
             st.rerun()
 
     conn.close()
