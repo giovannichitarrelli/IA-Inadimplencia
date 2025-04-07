@@ -5,6 +5,5 @@ httpx
 pandas
 numpy
 pillow
-pyodbc
 python-dotenv
 sqlalchemy

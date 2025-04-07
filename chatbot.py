@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from insights import generate_advanced_insights
 from urllib.parse import quote_plus
-
+ 
 load_dotenv()
 
 api_key = os.getenv("API_KEY")
@@ -75,8 +75,6 @@ def load_data(engine):
     except Exception as e:
         st.error(f"Erro ao carregar os dados: {str(e)}")
         return None
-
- 
 
 def main():
     st.title("Chatbot Inadimplinha")
