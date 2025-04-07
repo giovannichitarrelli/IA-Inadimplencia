@@ -1,4 +1,4 @@
- # V7 - Eliminando base insights e passando contexto via endpoints e palavras-chave 
+# V7 - Eliminando base insights e passando contexto via endpoints e palavras-chave 
 import streamlit as st
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
@@ -7,13 +7,11 @@ from langchain_core.chat_history import InMemoryChatMessageHistory
 import httpx
 import pandas as pd
 from PIL import Image
-import pyodbc
 import re
 import time
 from dotenv import load_dotenv
 import os
 import psycopg2
-
 
 load_dotenv()
 
@@ -44,7 +42,7 @@ def connect_to_db():
         username = os.getenv("USERNAME")
         password = os.getenv("PASSWORD")
         port = os.getenv("PORT")
-        table = "table_agg_inad_consolidado"
+     
         # Conexão com o banco de dados
         conn = psycopg2.connect(
             host=host,
@@ -52,7 +50,6 @@ def connect_to_db():
             user=username,
             password=password,
             port=port,
-            table=table
         )
         print("Conexão com o banco de dados estabelecida com sucesso!")
         return conn
@@ -61,48 +58,30 @@ def connect_to_db():
         print("Erro ao conectar ao banco de dados:", e)
         return None
     
-# Função para obter colunas da tabela
-def get_table_columns(conn, table):
-    try:
-        cursor = conn.cursor()
-        cursor.execute(f"SELECT TOP 1 * FROM {table}")
-        columns = [desc[0] for desc in cursor.description]
-        cursor.close()
-        return columns
-    except pyodbc.Error as e:
-        st.error(f"Erro ao obter colunas da tabela: {str(e)}")
-        return []
-
 def main():
     st.title("💬 Chatbot Inadimplinha")
     st.caption("🚀 Chatbot Inadimplinha desenvolvido por Grupo de Inadimplência EY")
     
-    conn, table = connect_to_db()
+    conn = connect_to_db()
     if conn is None:
-        st.stop()
-    
-    available_columns = get_table_columns(conn, table)
-    if not available_columns:
-        st.error("Não foi possível recuperar as colunas da tabela 'table_agg_inad_consolidado'.")
-        conn.close()
         st.stop()
     
     llm = get_llm_client()
 
-    # Definir o template de prompt
+    # Definir o template de prompt com filtro de data
+    table = "table_agg_inad_consolidado"
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
             "Você é um especialista em análise de inadimplência no Brasil. "
-            "Responda a pergunta do usuário com base nos dados da tabela '{table}' "
-            "sem passar detalhes técnicos e informações sobre as tabelas que estão sendo usadas. "
-            "Sempre forneça valores totais reais (em reais, R$) calculados a partir dos dados, "
-            "Não forneça detalhes como nome das colunas ou como deveria ser feita a consulta sql, "
-            "Insira informações adicionais relevantes sobre o tema quando apropriado. "
-            "As colunas disponíveis são: {available_columns}. "
+            f"Responda a pergunta do usuário com base nos dados da tabela '{table}'. "
+            "Considere APENAS os dados de dezembro de 2024 (data_base = '2024-12-01' ou equivalente). "
+            "Não passe detalhes técnicos como nomes de colunas ou consultas SQL completas na resposta final. "
+            "Forneça valores totais reais (em reais, R$) calculados a partir dos dados. "
+            "Inclua informações adicionais relevantes sobre o tema quando apropriado. "
+            "Se precisar gerar uma consulta SQL, inclua o filtro 'WHERE data_base = ''2024-12-01''' para restringir os dados a dezembro de 2024."
         )),
         ("human", "{input}")
     ])
-
 
     # Criar a cadeia de execução
     chain = prompt_template | llm
@@ -121,7 +100,7 @@ def main():
     
     # Adicionar mensagem inicial apenas uma vez
     if not st.session_state.app_initialized and not st.session_state.chat_history:
-        initial_message = "Como posso te ajudar hoje?"
+        initial_message = "Como posso te ajudar hoje com os dados de inadimplência de dezembro de 2024?"
         st.session_state.chat_history.append({"role": "assistant", "content": initial_message})
         st.session_state.chat_history_store.add_ai_message(initial_message)
         st.session_state.app_initialized = True
@@ -147,7 +126,7 @@ def main():
                 with st.spinner(""):
                     # Executar a consulta com contexto
                     response = conversation.invoke(
-                        {"input": prompt, "table": table, "available_columns": available_columns},
+                        {"input": prompt, "table": "table_agg_inad_consolidado"},
                         config={"configurable": {"session_id": "default"}}
                     )
                     response_stream = response.content
@@ -163,12 +142,12 @@ def main():
                     sql_match = re.search(r"```sql\n(.*?)\n```", full_response, re.DOTALL)
                     if sql_match:
                         query = sql_match.group(1)
-                        # Corrigir a posição do TOP se necessário
-                        if "TOP" in query and "ORDER BY" in query and query.index("TOP") > query.index("ORDER BY"):
-                            top_match = re.search(r"TOP\s+(\d+)", query)
-                            top_number = top_match.group(1) if top_match else "1"
-                            query = re.sub(r"TOP\s+\d+\s*;", "", query)
-                            query = query.replace("SELECT", f"SELECT TOP {top_number}", 1)
+                        
+                        # Garantir que o filtro de data esteja presente (PostgreSQL)
+                        if "WHERE" not in query.upper():
+                            query += " WHERE data_base = '2024-12-01'"
+                        elif "data_base" not in query.lower():
+                            query = query.replace("WHERE", "WHERE data_base = '2024-12-01' AND")
                         
                         # Executar a consulta no banco
                         df = pd.read_sql(query, conn)
@@ -185,7 +164,7 @@ def main():
                     # Adicionar à exibição do histórico após a resposta estar completa
                     st.session_state.chat_history.append({"role": "assistant", "content": final_response})
                 
-            except pyodbc.Error as e:
+            except psycopg2.Error as e:
                 error_message = f"Erro ao executar a consulta no banco: {str(e)}"
                 message_placeholder.markdown(error_message)
                 st.session_state.chat_history.append({"role": "assistant", "content": error_message})
@@ -203,14 +182,14 @@ def main():
         st.sidebar.image(ey_logo_resized)
         st.sidebar.header("EY Academy | Inadimplência")
 
-        st.sidebar.subheader("🔍 Sugestões de Análise")
+        st.sidebar.subheader("🔍 Sugestões de Análise (Dez/2024)")
         st.sidebar.write("➡️ Qual estado com maior inadimplência e quais os valores devidos?")
         st.sidebar.write("➡️ Qual cliente apresenta o maior número de operações?")
         st.sidebar.write("➡️ Em qual modalidade existe maior inadimplência?")
         st.sidebar.write("➡️ Compare a inadimplência entre PF e PJ")
         st.sidebar.write("➡️ Qual ocupação entre PF possui maior inadimplência?")
         st.sidebar.write("➡️ Qual o principal porte de cliente com inadimplência entre PF?")
-        st.sidebar.write("➡️ Qual seção CNAE possui a maior inadimplencia?")
+        st.sidebar.write("➡️ Qual seção CNAE possui a maior inadimplência?")
         st.sidebar.write("➡️ Qual estado tem o maior valor médio de operações a vencer em até 90 dias?")
         
         # Botão para limpar histórico de conversa
@@ -224,8 +203,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
- 
 
 # #V8 Pré definindo insights e acessando dados via .env e azure
 # import streamlit as st
