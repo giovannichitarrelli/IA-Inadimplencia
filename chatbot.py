@@ -59,12 +59,11 @@ def connect_to_db():
     try:
         print("Tentando conectar ao banco de dados PostgreSQL no GCP...")
         # Dados de conexão
-        host = "34.42.28.189"
-        database = "postgres"
-        username = "developer"
-        password = "t<\\@A`NTs\\EY*0_d"
-        port = 5432
-        table = "table_agg_inad_consolidado"
+        host = os.getenv("SERVER")
+        database = os.getenv("DATABASE")
+        username = os.getenv("USERNAME")
+        password = os.getenv("PASSWORD")
+        port = os.getenv("PORT")
 
         # Conexão com o banco de dados
         conn = psycopg2.connect(
