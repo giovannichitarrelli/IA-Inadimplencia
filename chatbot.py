@@ -12,7 +12,7 @@ import psycopg2
 import time
 import os
 from dotenv import load_dotenv
- 
+
 load_dotenv()
 
 api_key = os.getenv("API_KEY")
@@ -31,30 +31,6 @@ def get_llm_client():
         http_client=httpx.Client(verify=False)
     )
 
-# def connect_to_db():
-
-#     server = os.getenv('SERVER')
-#     database = os.getenv('DATABASE')
-#     username = os.getenv('USERNAME')
-#     password = os.getenv('PASSWORD')
-#     table = os.getenv('TABLE')
-
-#     try:
-#         connection_string = (
-#             f"DRIVER={{ODBC Driver 18 for SQL Server}};"
-#             f"SERVER={server};"
-#             f"DATABASE={database};"
-#             f"UID={username};"
-#             f"PWD={password};"
-#             f"Encrypt=yes;"
-#             f"TrustServerCertificate=no;"
-#             f"Connection Timeout=30;"
-#         )
-#         conn = pyodbc.connect(connection_string)
-#         return conn, table
-#     except pyodbc.Error as e:
-#         st.error(f"Erro ao conectar ao banco de dados: {str(e)}")
-#         return None, None
 def connect_to_db():
     try:
         print("Tentando conectar ao banco de dados PostgreSQL no GCP...")
@@ -82,7 +58,7 @@ def connect_to_db():
     
 def load_data(conn):
     try:
-        table = "agg_inad_consolidado"  # Defina a tabela diretamente aqui
+        table = "table_agg_inad_consolidado"  
         query = f"SELECT * FROM {table}"
         df = pd.read_sql(query, conn)
         return df
@@ -90,8 +66,7 @@ def load_data(conn):
         st.error(f"Erro ao carregar os dados: {str(e)}")
         return None
 
-import pandas as pd
-import numpy as np
+
 
 def generate_advanced_insights(df):
     """
