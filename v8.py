@@ -1,4 +1,5 @@
  
+#V8 Pré definindo insights e acessando dados via .env e azure
 import streamlit as st
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
@@ -65,6 +66,8 @@ def load_data(conn):
     except psycopg2.Error as e:
         st.error(f"Erro ao carregar os dados: {str(e)}")
         return None
+
+
 
 def generate_advanced_insights(df):
     """
