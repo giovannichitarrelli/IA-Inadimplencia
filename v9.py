@@ -1,4 +1,4 @@
-
+#V9 - Usando sqlalchemy para conectar ao banco de dados
 import streamlit as st
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
@@ -34,7 +34,7 @@ def get_llm_client():
 
 def connect_to_db():
     try:
-        # print("Tentando conectar ao banco de dados PostgreSQL no GCP...")
+        print("Tentando conectar ao banco de dados PostgreSQL no GCP...")
         # Dados de conexão
         host = os.getenv("SERVER")
         database = os.getenv("DATABASE")
@@ -51,7 +51,7 @@ def connect_to_db():
 
         # String de conexão com senha codificada
         connection_string = f"postgresql://{username}:{encoded_password}@{host}:{port}/{database}"
-        # print(f"String de conexão: {connection_string}")  # Para depuração, remova em produção
+        print(f"String de conexão: {connection_string}")  # Para depuração, remova em produção
 
         # Criar engine do SQLAlchemy
         engine = create_engine(connection_string)
@@ -76,7 +76,7 @@ def load_data(engine):
         st.error(f"Erro ao carregar os dados: {str(e)}")
         return None
 
- 
+# O restante da função `generate_advanced_insights` permanece igual...
 
 def main():
     st.title("Chatbot Inadimplinha")

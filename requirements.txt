@@ -7,4 +7,4 @@ numpy
 pillow
 pyodbc
 python-dotenv
-psycopg2-binary
+sqlalchemy
