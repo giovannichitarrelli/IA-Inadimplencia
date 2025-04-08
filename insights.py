@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
 
+import pandas as pd
+import numpy as np
+
 def generate_advanced_insights(df):
     """
     Gera insights detalhados sobre inadimplência a partir de dados consolidados de dezembro de 2024
@@ -125,48 +128,77 @@ def generate_advanced_insights(df):
         insights += f"- **{row['cnae_secao']}**: {row['taxa_inadimplencia']:.2f}% "
         insights += f"(R$ {row['soma_carteira_inadimplida_arrastada']:,.2f})\n"
     
-    # 5. ANÁLISE POR TIPO DE CLIENTE (PF vs PJ)
+    # 5. COMPARATIVO PESSOA FÍSICA VS PESSOA JURÍDICA (DEZ/2024)
     insights += "\n## 5. COMPARATIVO PESSOA FÍSICA VS PESSOA JURÍDICA (DEZ/2024)\n\n"
     
     client_type_summary = df.groupby('tipo_cliente').agg({
         'soma_carteira_inadimplida_arrastada': 'sum',
         'soma_carteira_ativa': 'sum',
         'soma_numero_de_operacoes': 'sum',
-        'soma_ativo_problematico': 'sum'
+        'soma_ativo_problematico': 'sum',
+        'soma_a_vencer_ate_90_dias': 'sum',
+        'projecao_inadimplencia_90d': 'sum'
     }).reset_index()
     
-    client_type_summary['taxa_inadimplencia'] = client_type_summary['soma_carteira_inadimplida_arrastada'] / client_type_summary['soma_carteira_ativa'] * 100
-    client_type_summary['media_por_operacao'] = client_type_summary['soma_carteira_inadimplida_arrastada'] / client_type_summary['soma_numero_de_operacoes']
+    client_type_summary['taxa_inadimplencia'] = (client_type_summary['soma_carteira_inadimplida_arrastada'] / client_type_summary['soma_carteira_ativa'] * 100).fillna(0)
+    client_type_summary['media_por_operacao'] = (client_type_summary['soma_carteira_inadimplida_arrastada'] / client_type_summary['soma_numero_de_operacoes']).fillna(0)
+    client_type_summary['percentual_inadimplencia'] = (client_type_summary['soma_carteira_inadimplida_arrastada'] / total_inadimplencia * 100).fillna(0)
+    client_type_summary['risco_90d_percentual'] = (client_type_summary['projecao_inadimplencia_90d'] / client_type_summary['soma_a_vencer_ate_90_dias'] * 100).fillna(0)
     
+    insights += "### Visão Geral PF vs PJ:\n"
     for _, row in client_type_summary.iterrows():
-        insights += f"### {row['tipo_cliente']}:\n"
-        insights += f"- **Inadimplência Total**: R$ {row['soma_carteira_inadimplida_arrastada']:,.2f}\n"
+        insights += f"#### {row['tipo_cliente']}:\n"
+        insights += f"- **Inadimplência Total**: R$ {row['soma_carteira_inadimplida_arrastada']:,.2f} ({row['percentual_inadimplencia']:.2f}% do total)\n"
         insights += f"- **Taxa de Inadimplência**: {row['taxa_inadimplencia']:.2f}%\n"
         insights += f"- **Ativos Problemáticos**: R$ {row['soma_ativo_problematico']:,.2f}\n"
-        insights += f"- **Operações**: {row['soma_numero_de_operacoes']:,.0f}\n"
-        insights += f"- **Média por Operação**: R$ {row['media_por_operacao']:,.2f}\n\n"
+        insights += f"- **Número de Operações**: {row['soma_numero_de_operacoes']:,.0f}\n"
+        insights += f"- **Média por Operação**: R$ {row['media_por_operacao']:,.2f}\n"
+        insights += f"- **Projeção Inadimplência 90 Dias**: R$ {row['projecao_inadimplencia_90d']:,.2f} (Risco: {row['risco_90d_percentual']:.2f}%)\n\n"
     
-    # 6. ANÁLISE POR PORTE
-    insights += "\n## 6. INADIMPLÊNCIA POR PORTE DE CLIENTE (DEZ/2024)\n\n"
-    
+    # 5.1 Distribuição por Porte
+    insights += "### Distribuição por Porte:\n"
     size_summary = df.groupby(['tipo_cliente', 'porte']).agg({
         'soma_carteira_inadimplida_arrastada': 'sum',
         'soma_carteira_ativa': 'sum',
-        'soma_ativo_problematico': 'sum'
+        'soma_ativo_problematico': 'sum',
+        'soma_numero_de_operacoes': 'sum'
     }).reset_index()
     
-    size_summary['taxa_inadimplencia'] = size_summary['soma_carteira_inadimplida_arrastada'] / size_summary['soma_carteira_ativa'] * 100
-    size_summary['indice_problematico'] = size_summary['soma_ativo_problematico'] / size_summary['soma_carteira_ativa'] * 100
+    size_summary['taxa_inadimplencia'] = (size_summary['soma_carteira_inadimplida_arrastada'] / size_summary['soma_carteira_ativa'] * 100).fillna(0)
+    size_summary['indice_problematico'] = (size_summary['soma_ativo_problematico'] / size_summary['soma_carteira_ativa'] * 100).fillna(0)
     
     for tipo in ['PF', 'PJ']:
-        insights += f"### {tipo}:\n"
+        insights += f"#### {tipo}:\n"
         for _, row in size_summary[size_summary['tipo_cliente'] == tipo].sort_values('soma_carteira_inadimplida_arrastada', ascending=False).iterrows():
             insights += f"- **{row['porte']}**: R$ {row['soma_carteira_inadimplida_arrastada']:,.2f} "
             insights += f"(Taxa: {row['taxa_inadimplencia']:.2f}%, Índice Problemático: {row['indice_problematico']:.2f}%)\n"
         insights += "\n"
     
-    # 7. ANÁLISE POR MODALIDADE
-    insights += "\n## 7. MODALIDADES DE CRÉDITO E INADIMPLÊNCIA (DEZ/2024)\n\n"
+    # 5.2 Modalidades de Crédito por Tipo de Cliente
+    insights += "### Modalidades de Crédito com Maior Inadimplência:\n"
+    modality_summary_client = df.groupby(['tipo_cliente', 'modalidade']).agg({
+        'soma_carteira_inadimplida_arrastada': 'sum',
+        'soma_carteira_ativa': 'sum',
+        'soma_numero_de_operacoes': 'sum'
+    }).reset_index()
+    
+    modality_summary_client['taxa_inadimplencia'] = (modality_summary_client['soma_carteira_inadimplida_arrastada'] / modality_summary_client['soma_carteira_ativa'] * 100).fillna(0)
+    modality_summary_client['percentual_inadimplencia'] = (modality_summary_client['soma_carteira_inadimplida_arrastada'] / total_inadimplencia * 100).fillna(0)
+    
+    for tipo in ['PF', 'PJ']:
+        insights += f"#### {tipo}:\n"
+        insights += f"- **Top Modalidades por Volume de Inadimplência**:\n"
+        for _, row in modality_summary_client[modality_summary_client['tipo_cliente'] == tipo].sort_values('soma_carteira_inadimplida_arrastada', ascending=False).head(3).iterrows():
+            insights += f"  - **{row['modalidade']}**: R$ {row['soma_carteira_inadimplida_arrastada']:,.2f} "
+            insights += f"({row['percentual_inadimplencia']:.2f}% do total, Taxa: {row['taxa_inadimplencia']:.2f}%)\n"
+        insights += f"- **Top Modalidades por Taxa de Inadimplência**:\n"
+        for _, row in modality_summary_client[(modality_summary_client['tipo_cliente'] == tipo) & (modality_summary_client['soma_carteira_ativa'] > 1000000)].sort_values('taxa_inadimplencia', ascending=False).head(3).iterrows():
+            insights += f"  - **{row['modalidade']}**: {row['taxa_inadimplencia']:.2f}% "
+            insights += f"(R$ {row['soma_carteira_inadimplida_arrastada']:,.2f})\n"
+        insights += "\n"
+    
+    # 6. ANÁLISE POR MODALIDADE GERAL
+    insights += "\n## 6. MODALIDADES DE CRÉDITO E INADIMPLÊNCIA (DEZ/2024)\n\n"
     
     modality_summary = df.groupby('modalidade').agg({
         'soma_carteira_inadimplida_arrastada': 'sum',
@@ -187,8 +219,8 @@ def generate_advanced_insights(df):
         insights += f"- **{row['modalidade']}**: {row['taxa_inadimplencia']:.2f}% "
         insights += f"(R$ {row['soma_carteira_inadimplida_arrastada']:,.2f})\n"
     
-    # 8. ANÁLISE POR OCUPAÇÃO (PF)
-    insights += "\n## 8. INADIMPLÊNCIA POR OCUPAÇÃO - PESSOA FÍSICA (DEZ/2024)\n\n"
+    # 7. ANÁLISE POR OCUPAÇÃO (PF)
+    insights += "\n## 7. INADIMPLÊNCIA POR OCUPAÇÃO - PESSOA FÍSICA (DEZ/2024)\n\n"
     
     occupation_summary = df[df['tipo_cliente'] == 'PF'].groupby('ocupacao').agg({
         'soma_carteira_inadimplida_arrastada': 'sum',
@@ -210,8 +242,8 @@ def generate_advanced_insights(df):
         insights += f"- **{row['ocupacao']}**: {row['taxa_inadimplencia']:.2f}% "
         insights += f"(Volume: R$ {row['soma_carteira_inadimplida_arrastada']:,.2f})\n"
     
-    # 9. PROJEÇÕES E RISCO FUTURO
-    insights += "\n## 9. PROJEÇÃO DE INADIMPLÊNCIA EM 90 DIAS (DEZ/2024)\n\n"
+    # 8. PROJEÇÕES E RISCO FUTURO
+    insights += "\n## 8. PROJEÇÃO DE INADIMPLÊNCIA EM 90 DIAS (DEZ/2024)\n\n"
     
     projection_summary = df.groupby(['tipo_cliente', 'porte']).agg({
         'projecao_inadimplencia_90d': 'sum',
@@ -227,8 +259,8 @@ def generate_advanced_insights(df):
         insights += f"- **{row['tipo_cliente']} - {row['porte']}**: R$ {row['projecao_inadimplencia_90d']:,.2f} "
         insights += f"(Risco: {row['risco_percentual']:.2f}%, Aumento Previsto: {row['aumento_previsto']:.2f}%)\n"
     
-    # 10. REESTRUTURAÇÃO DE DÍVIDAS
-    insights += "\n## 10. ANÁLISE DE REESTRUTURAÇÃO DE DÍVIDAS (DEZ/2024)\n\n"
+    # 9. REESTRUTURAÇÃO DE DÍVIDAS
+    insights += "\n## 9. ANÁLISE DE REESTRUTURAÇÃO DE DÍVIDAS (DEZ/2024)\n\n"
     
     restructuring_summary = df.groupby(['tipo_cliente', 'porte']).agg({
         'indicador_reestruturacao': 'sum',
@@ -244,8 +276,8 @@ def generate_advanced_insights(df):
             insights += f"- **{row['tipo_cliente']} - {row['porte']}**: R$ {row['indicador_reestruturacao']:,.2f} "
             insights += f"({row['percentual_reestruturacao']:.2f}% dos ativos problemáticos)\n"
     
-    # 11. RECOMENDAÇÕES ESTRATÉGICAS
-    insights += "\n## 11. RECOMENDAÇÕES ESTRATÉGICAS (DEZ/2024)\n\n"
+    # 10. RECOMENDAÇÕES ESTRATÉGICAS
+    insights += "\n## 10. RECOMENDAÇÕES ESTRATÉGICAS (DEZ/2024)\n\n"
     
     insights += "### Ações Recomendadas por Segmento de Risco:\n"
     
