@@ -139,63 +139,18 @@ def generate_dynamic_query(intent, prompt, llm, table_name="table_agg_inad_conso
     
     return sql_query
 
-# def process_question_with_insights(prompt, intent, dynamic_query, df, insights, llm):
-#     """
-#     Processa a pergunta usando insights estáticos e dados dinâmicos da consulta
-#     """
-#     # Executar a consulta dinâmica
-#     try:
-#         dynamic_results = pd.read_sql(dynamic_query, df.con) if hasattr(df, 'con') else df.query(dynamic_query) if "SELECT" not in dynamic_query.upper() else pd.read_sql(dynamic_query, create_engine("sqlite:///:memory:"), params={})
-#     except Exception as e:
-#         print(f"Erro ao executar consulta dinâmica: {e}")
-#         # Fallback para insights estáticos
-#         dynamic_results = "Não foi possível gerar resultados dinâmicos específicos."
-    
-#     # Preparar o contexto combinado
-#     processing_prompt = ChatPromptTemplate.from_messages([
-#         ("system", f"""
-#         Você é um especialista em análise de inadimplência no Brasil.
-        
-#         A pergunta do usuário foi classificada como: {intent}
-        
-#         Responda à pergunta usando estas duas fontes de informação:
-        
-#         1. INSIGHTS PRÉ-CALCULADOS:
-#         {insights}
-        
-#         2. RESULTADOS DINÂMICOS DA CONSULTA:
-#         {dynamic_results}
-        
-#         Priorize os resultados dinâmicos pois são mais relevantes para a pergunta específica.
-#         Use os insights pré-calculados para complementar sua resposta com contexto adicional.
-        
-#         Formate os valores em reais (R$) com duas casas decimais e separadores de milhar.
-#         Seja conciso e direto, destacando os pontos mais relevantes para a pergunta do usuário.
-#         """),
-#         ("human", "{input}")
-#     ])
-    
-#     processing_chain = processing_prompt | llm
-#     response = processing_chain.invoke({"input": prompt})
-    
-#     return response.content
-
-
-def process_question_with_insights(prompt, intent, dynamic_query, df, insights, llm, conn):
+def process_question_with_insights(prompt, intent, dynamic_query, df, insights, llm):
     """
     Processa a pergunta usando insights estáticos e dados dinâmicos da consulta
     """
     # Executar a consulta dinâmica
     try:
-        if "SELECT" in dynamic_query.upper():
-            dynamic_results = pd.read_sql(dynamic_query, conn)
-        else:
-            dynamic_results = df.query(dynamic_query) if dynamic_query else df
+        dynamic_results = pd.read_sql(dynamic_query, df.con) if hasattr(df, 'con') else df.query(dynamic_query) if "SELECT" not in dynamic_query.upper() else pd.read_sql(dynamic_query, create_engine("sqlite:///:memory:"), params={})
     except Exception as e:
         print(f"Erro ao executar consulta dinâmica: {e}")
+        # Fallback para insights estáticos
         dynamic_results = "Não foi possível gerar resultados dinâmicos específicos."
     
-
     # Preparar o contexto combinado
     processing_prompt = ChatPromptTemplate.from_messages([
         ("system", f"""
@@ -224,6 +179,51 @@ def process_question_with_insights(prompt, intent, dynamic_query, df, insights, 
     response = processing_chain.invoke({"input": prompt})
     
     return response.content
+
+
+# def process_question_with_insights(prompt, intent, dynamic_query, df, insights, llm, conn):
+#     """
+#     Processa a pergunta usando insights estáticos e dados dinâmicos da consulta
+#     """
+#     # Executar a consulta dinâmica
+#     try:
+#         if "SELECT" in dynamic_query.upper():
+#             dynamic_results = pd.read_sql(dynamic_query, conn)
+#         else:
+#             dynamic_results = df.query(dynamic_query) if dynamic_query else df
+#     except Exception as e:
+#         print(f"Erro ao executar consulta dinâmica: {e}")
+#         dynamic_results = "Não foi possível gerar resultados dinâmicos específicos."
+    
+
+#     # Preparar o contexto combinado
+#     processing_prompt = ChatPromptTemplate.from_messages([
+#         ("system", f"""
+#         Você é um especialista em análise de inadimplência no Brasil.
+        
+#         A pergunta do usuário foi classificada como: {intent}
+        
+#         Responda à pergunta usando estas duas fontes de informação:
+        
+#         1. INSIGHTS PRÉ-CALCULADOS:
+#         {insights}
+        
+#         2. RESULTADOS DINÂMICOS DA CONSULTA:
+#         {dynamic_results}
+        
+#         Priorize os resultados dinâmicos pois são mais relevantes para a pergunta específica.
+#         Use os insights pré-calculados para complementar sua resposta com contexto adicional.
+        
+#         Formate os valores em reais (R$) com duas casas decimais e separadores de milhar.
+#         Seja conciso e direto, destacando os pontos mais relevantes para a pergunta do usuário.
+#         """),
+#         ("human", "{input}")
+#     ])
+    
+#     processing_chain = processing_prompt | llm
+#     response = processing_chain.invoke({"input": prompt})
+    
+#     return response.content
 
 def main():
     st.title("Chatbot Inadimplinha")
