@@ -93,7 +93,7 @@ def connect_to_db():
         encoded_password = quote_plus(password)
 
         # String de conexão com senha codificada
-        connection_string = f"postgresql+pg8000://{username}:{encoded_password}@{host}:{port}/{database}"
+        connection_string = f"postgresql+psycopg2://{username}:{encoded_password}@{host}:{port}/{database}"
 
         # Criar engine do SQLAlchemy
         engine = create_engine(connection_string)
